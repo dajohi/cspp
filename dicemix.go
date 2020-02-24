@@ -351,7 +351,11 @@ func (s *Session) run(ctx context.Context, n int, br *messages.BR) error {
 	}
 
 	// Derive shared secret keys
-	r.srKP, r.dcKP = dcnet.SharedKeys(s.kx, ecdh, s.sid, MessageSize, r.run, s.myStart, s.mcount)
+	r.srKP, r.dcKP, err = dcnet.SharedKeys(s.kx, ecdh, s.sid, MessageSize, r.run, s.myStart, s.mcount)
+	if err != nil {
+		s.log.Print(err)
+		return err
+	}
 
 	// Calculate slot reservation DC-net vectors
 	r.srMix = make([][]*big.Int, s.mcount)

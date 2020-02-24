@@ -1208,9 +1208,13 @@ KELoop:
 SRLoop:
 	for i, c := range s.clients {
 		// Recover shared secrets
-		b[i].srKP, b[i].dcKP = dcnet.SharedKeys(b[i].kx, ecdh, s.sid, s.msize,
+		b[i].srKP, b[i].dcKP, err = dcnet.SharedKeys(b[i].kx, ecdh, s.sid, s.msize,
 			s.run, starts[i], c.pr.MessageCount)
-
+		if err != nil {
+			log.Printf("blaming %v for bad SharedKeys: %v", c.raddr(), err)
+			blamed = append(blamed, i)
+			continue SRLoop
+		}
 		for j, m := range b[i].srMsg {
 			// Recover SR pads and mix with committed messages
 			pads := dcnet.SRMixPads(b[i].srKP[j], starts[i]+j)
