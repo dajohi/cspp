@@ -354,7 +354,7 @@ func (s *Session) run(ctx context.Context, n int, br *messages.BR) error {
 	r.srKP, r.dcKP, err = dcnet.SharedKeys(s.kx, ecdh, s.sid, MessageSize, r.run, s.myStart, s.mcount)
 	if err != nil {
 		s.log.Print(err)
-		return err
+		return s.clientRunFail(ctx, rs)
 	}
 
 	// Calculate slot reservation DC-net vectors
