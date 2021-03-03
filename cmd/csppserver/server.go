@@ -55,6 +55,7 @@ var (
 	httpFlag     = fs.String("http", "", "listen address for public webserver (no TLS)")
 	httpsFlag    = fs.String("https", ":443", "listen address for public webserver (uses same TLS config as from cspp listener)")
 	epochFlag    = fs.Duration("epoch", 5*time.Minute, "mixing epoch")
+	minPeersFlag = fs.Int("minpeers", 4, "minimum number of peers for a mix to run")
 	dcrdWSFlag   = fs.String("dcrd.ws", "wss://localhost:9109/ws", "dcrd websocket")
 	dcrdCAFlag   = fs.String("dcrd.ca", defaultDcrdCA(), "dcrd certificate authority")
 	dcrdUserFlag = fs.String("dcrd.user", "", "dcrd RPC username; uses DCRDUSER environment variable if unset")
@@ -146,7 +147,7 @@ func main() {
 		}
 		return coinjoin.NewTx(rpc, sc, amount, minFeeRate, txVersion, lockTime, expiry)
 	}
-	s, err := server.New(cspp.MessageSize, newm, *epochFlag)
+	s, err := server.New(cspp.MessageSize, newm, *epochFlag, *minPeers)
 	if err != nil {
 		log.Fatal(err)
 	}

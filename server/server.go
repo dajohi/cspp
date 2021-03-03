@@ -35,7 +35,6 @@ const (
 	pairTimeout = 24 * time.Hour
 	sendTimeout = time.Second
 	recvTimeout = 5 * time.Second
-	minPeers    = 3
 )
 
 // Mixer is any binary-representable data which can add mixed messages and be
@@ -84,6 +83,7 @@ type Server struct {
 	msize      int
 	newm       NewMixer
 	epoch      time.Duration
+	minPeers   int
 	pairings   map[string][]*client
 	pairingsMu sync.Mutex
 
@@ -110,12 +110,13 @@ type runState struct {
 type session struct {
 	runs []runState
 
-	sid    []byte
-	msgses *messages.Session
-	br     *messages.BR
-	msize  int
-	newm   func() (Mixer, error)
-	mix    Mixer
+	sid      []byte
+	msgses   *messages.Session
+	br       *messages.BR
+	msize    int
+	newm     func() (Mixer, error)
+	mix      Mixer
+	minPeers int
 
 	run      int
 	mtot     int
@@ -161,7 +162,7 @@ type NewMixer func(desc []byte) (Mixer, error)
 //
 // If the Mixer returned by newm implements the Joiner and Shuffler interfaces,
 // these will be called to join and shuffle non-anonymous portions of a mix.
-func New(msize int, newm NewMixer, epoch time.Duration) (*Server, error) {
+func New(msize int, newm NewMixer, epoch time.Duration, minPeers int) (*Server, error) {
 	seed := make([]byte, 32)
 	_, err := rand.Read(seed)
 	if err != nil {
@@ -172,6 +173,7 @@ func New(msize int, newm NewMixer, epoch time.Duration) (*Server, error) {
 		msize:    msize,
 		newm:     newm,
 		epoch:    epoch,
+		minPeers: minPeers,
 		pairings: make(map[string][]*client),
 	}
 	return s, nil
@@ -386,7 +388,7 @@ func (s *Server) pairSessions(ctx context.Context) error {
 		var pairs []*session
 		s.pairingsMu.Lock()
 		for commitment, clients := range s.pairings {
-			if len(clients) < minPeers {
+			if len(clients) < s.minPeers {
 				continue
 			}
 
@@ -422,18 +424,19 @@ func (s *Server) pairSessions(ctx context.Context) error {
 			}
 			sid := s.sidPRNG.Next(32)
 			ses := &session{
-				sid:     sid,
-				msgses:  messages.NewSession(sid, 0, vk),
-				br:      messages.BeginRun(vk, mcounts, sid),
-				msize:   s.msize,
-				newm:    newm,
-				mix:     mix,
-				mtot:    totalMessages,
-				clients: clients,
-				vk:      vk,
-				mcounts: mcounts,
-				pids:    pids,
-				report:  s.report,
+				sid:      sid,
+				msgses:   messages.NewSession(sid, 0, vk),
+				br:       messages.BeginRun(vk, mcounts, sid),
+				minPeers: s.minPeers,
+				msize:    s.msize,
+				newm:     newm,
+				mix:      mix,
+				mtot:     totalMessages,
+				clients:  clients,
+				vk:       vk,
+				mcounts:  mcounts,
+				pids:     pids,
+				report:   s.report,
 			}
 			ses.runs = append(ses.runs, runState{
 				allKEs:    make(chan struct{}),
@@ -549,7 +552,7 @@ func (s *session) exclude(blamed []int) error {
 		return bytes.Compare(id1, id2) < 0
 	})
 	s.clients = clients
-	if len(s.clients) < minPeers {
+	if len(s.clients) < s.minPeers {
 		return fmt.Errorf("too few peers (%v) to continue session", len(s.clients))
 	}
 	s.vk = s.vk[:len(s.clients)]
